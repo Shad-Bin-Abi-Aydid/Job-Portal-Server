@@ -1,14 +1,14 @@
-const express = require('express');
-const { MongoClient, ServerApiVersion } = require('mongodb');
-const cors = require('cors');
+const express = require("express");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const cors = require("cors");
 const app = express();
-require('dotenv').config();
+require("dotenv").config();
 
 const port = process.env.PORT || 3000;
 
-
-
-
+// Middleware
+app.use(cors());
+app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_User}:${process.env.DB_password}@cluster0.oetnlio.mongodb.net/?appName=Cluster0`;
 
@@ -18,7 +18,7 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
 async function run() {
@@ -27,7 +27,61 @@ async function run() {
     await client.connect();
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
+
+    // Jobs related API's
+    const jobsCollection = client.db("jobPortal").collection("jobs");
+    const jobApplicationCollection = client
+      .db("jobPortal")
+      .collection("job-applications");
+
+    // Find or get all data
+    app.get("/jobs", async (req, res) => {
+      const cursor = jobsCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    // Find a data
+    app.get("/jobs/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await jobsCollection.findOne(query);
+      res.send(result);
+    });
+
+    // Job application api's
+    // three options to get data - get one, get all and get some data([0, 1, many])
+
+    app.get("/job-applications", async (req, res) => {
+      const email = req.query.email; //Get email from the URL => GET /job-applications?email=aydid@gmail.com
+      const query = { applicant_email: email };
+      const result = await jobApplicationCollection.find(query).toArray();
+
+      // Very normal way to aggregate data (Not recommended)
+      for (const application of result) {
+
+        const query1 = { _id: new ObjectId(application.job_id) };
+        const job = await jobsCollection.findOne(query1);
+
+        if (job) {
+          application.title = job.title;
+          application.company = job.company;
+          application.company_logo = job.company_logo;
+          application.location = job.location;
+        }
+      }
+
+      res.send(result);
+    });
+
+    app.post("/job-applications", async (req, res) => {
+      const application = req.body;
+      const result = await jobApplicationCollection.insertOne(application);
+      res.send(result);
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -35,17 +89,12 @@ async function run() {
 }
 run().catch(console.dir);
 
-
 // -----------
 
-app.use(cors());
-app.use(express.json());
+app.get("/", (req, res) => {
+  res.send("Job is falling from the sky");
+});
 
-
-app.get('/', (req, res)=>{
-    res.send('Job is falling from the sky');
-})
-
-app.listen(port, () =>{
-    console.log(`Job is waiting at : ${port}`);
-})
+app.listen(port, () => {
+  console.log(`Job is waiting at : ${port}`);
+});
