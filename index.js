@@ -52,6 +52,13 @@ async function run() {
       res.send(result);
     });
 
+    // post a data
+    app.post('/jobs', async(req, res) =>{
+      const newJob = req.body;
+      const result = await jobsCollection.insertOne(newJob);
+      res.send(result);
+    })
+
     // Job application api's
     // three options to get data - get one, get all and get some data([0, 1, many])
 
@@ -71,6 +78,7 @@ async function run() {
           application.company = job.company;
           application.company_logo = job.company_logo;
           application.location = job.location;
+          application.category = job.category;
         }
       }
 
