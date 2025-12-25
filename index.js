@@ -39,7 +39,14 @@ async function run() {
 
     // Find or get all data
     app.get("/jobs", async (req, res) => {
-      const cursor = jobsCollection.find();
+      const email = req.query.email;
+      let query = {};
+
+      if (email) {
+        query = { hr_email: email };
+      }
+
+      const cursor = jobsCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -53,11 +60,11 @@ async function run() {
     });
 
     // post a data
-    app.post('/jobs', async(req, res) =>{
+    app.post("/jobs", async (req, res) => {
       const newJob = req.body;
       const result = await jobsCollection.insertOne(newJob);
       res.send(result);
-    })
+    });
 
     // Job application api's
     // three options to get data - get one, get all and get some data([0, 1, many])
@@ -69,7 +76,6 @@ async function run() {
 
       // Very normal way to aggregate data (Not recommended)
       for (const application of result) {
-
         const query1 = { _id: new ObjectId(application.job_id) };
         const job = await jobsCollection.findOne(query1);
 
@@ -85,11 +91,37 @@ async function run() {
       res.send(result);
     });
 
+    // Get data how many applications for a job
+    app.get("/job-applications/jobs/:job_id", async (req, res) => {
+      const id = req.params.job_id;
+      const query = { job_id: id };
+
+      const result = await jobApplicationCollection.find(query).toArray();
+      res.send(result);
+    });
+
     app.post("/job-applications", async (req, res) => {
       const application = req.body;
       const result = await jobApplicationCollection.insertOne(application);
       res.send(result);
     });
+
+    app.patch("/job-applications/:id", async (req, res) => {
+      const id = req.params.id;
+      const data = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          status: data.status,
+        },
+      };
+      const result = await jobApplicationCollection.updateOne(
+        filter,
+        updatedDoc
+      );
+      res.send(result);
+    });
+    
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
