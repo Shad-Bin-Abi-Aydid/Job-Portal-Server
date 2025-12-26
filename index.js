@@ -1,14 +1,40 @@
 const express = require("express");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const app = express();
 require("dotenv").config();
 
 const port = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin:['http://localhost:5173'],
+  credentials:true
+}));
 app.use(express.json());
+app.use(cookieParser());
+
+// Verify the token
+const verifyToken = (req, res, next) =>{
+ 
+  const token = req?.cookies?.token;
+  if(!token){
+    return res.status(401).send({message: 'Unauthorized access'});
+  }
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded)=>{
+    if(err){
+      return res.status(401).send({message:'Unauthorized access'})
+    }
+    next();
+  })
+
+
+  
+
+}
 
 const uri = `mongodb+srv://${process.env.DB_User}:${process.env.DB_password}@cluster0.oetnlio.mongodb.net/?appName=Cluster0`;
 
@@ -30,6 +56,17 @@ async function run() {
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
+
+    // Auth related API's
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "5h",
+      });
+      res
+        .cookie("token", token, { httpOnly: true, secure: false })
+        .send({ success: true });
+    });
 
     // Jobs related API's
     const jobsCollection = client.db("jobPortal").collection("jobs");
@@ -69,9 +106,11 @@ async function run() {
     // Job application api's
     // three options to get data - get one, get all and get some data([0, 1, many])
 
-    app.get("/job-applications", async (req, res) => {
+    app.get("/job-applications", verifyToken, async (req, res) => {
       const email = req.query.email; //Get email from the URL => GET /job-applications?email=aydid@gmail.com
       const query = { applicant_email: email };
+
+      console.log('From the get')
       const result = await jobApplicationCollection.find(query).toArray();
 
       // Very normal way to aggregate data (Not recommended)
@@ -121,7 +160,6 @@ async function run() {
       );
       res.send(result);
     });
-    
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
