@@ -9,32 +9,30 @@ require("dotenv").config();
 const port = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors({
-  origin:['http://localhost:5173'],
-  credentials:true
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 
 // Verify the token
-const verifyToken = (req, res, next) =>{
- 
+const verifyToken = (req, res, next) => {
   const token = req?.cookies?.token;
-  if(!token){
-    return res.status(401).send({message: 'Unauthorized access'});
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
   }
 
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded)=>{
-    if(err){
-      return res.status(401).send({message:'Unauthorized access'})
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "Unauthorized access" });
     }
+    req.user = decoded;
     next();
-  })
-
-
-  
-
-}
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_User}:${process.env.DB_password}@cluster0.oetnlio.mongodb.net/?appName=Cluster0`;
 
@@ -59,13 +57,23 @@ async function run() {
 
     // Auth related API's
     app.post("/jwt", async (req, res) => {
-      const user = req.body;
+      const user = req.body; //payload
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: "5h",
       });
       res
         .cookie("token", token, { httpOnly: true, secure: false })
         .send({ success: true });
+    });
+
+    // For clearing the cookies
+    app.post("/logout", (req, res) => {
+      res
+        .clearCookie("token", {
+          httpOnly: true,
+          secure: false,
+        })
+        .send({ message: "LogOut successful" });
     });
 
     // Jobs related API's
@@ -110,7 +118,10 @@ async function run() {
       const email = req.query.email; //Get email from the URL => GET /job-applications?email=aydid@gmail.com
       const query = { applicant_email: email };
 
-      console.log('From the get')
+      if (req.user.email != email) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
+
       const result = await jobApplicationCollection.find(query).toArray();
 
       // Very normal way to aggregate data (Not recommended)
